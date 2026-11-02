@@ -1,0 +1,438 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Genetic Disorder Screening System</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #eef2f7;
+            margin: 0;
+            padding: 30px 15px;
+        }
+
+        .container {
+            max-width: 950px;
+            margin: auto;
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px #0001;
+        }
+
+        h1, h2 {
+            color: #173b67;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .description {
+            text-align: center;
+            color: #64748b;
+        }
+
+        #fields {
+            display: grid;
+            grid-template-columns: repeat(
+                auto-fit, minmax(230px, 1fr)
+            );
+            gap: 18px;
+        }
+
+        label {
+            font-weight: bold;
+            color: #334155;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            margin-top: 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            margin-top: 22px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 7px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        #result {
+            background: #eff6ff;
+            border-left: 5px solid #2563eb;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 7px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .bar-row {
+            margin: 22px 0;
+        }
+
+        .bar-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .bar-background {
+            height: 24px;
+            background: #e2e8f0;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: #2563eb;
+            border-radius: 20px;
+            transition: width 0.7s;
+        }
+
+        #bestKernel {
+            background: #ecfdf5;
+            color: #166534;
+            padding: 15px;
+            border-radius: 7px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        #status {
+            color: #b91c1c;
+        }
+
+        .note {
+            text-align: center;
+            color: #64748b;
+            font-size: 13px;
+            margin-top: 25px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="card">
+
+        <h1>Genetic Disorder Subclass Screening System</h1>
+
+        <p class="description">
+            SVM Based Genetic Disorder Prediction
+        </p>
+
+        <h2>Patient Information</h2>
+
+        <form id="patientForm">
+
+            <div id="fields">
+                Loading patient features...
+            </div>
+
+            <button type="submit">
+                Predict Disorder Subclass
+            </button>
+
+        </form>
+
+        <p id="status"></p>
+
+        <div id="result" class="hidden">
+
+            <h2>Prediction Result</h2>
+
+            <p>
+                <strong>Predicted Subclass:</strong>
+                <span id="prediction"></span>
+            </p>
+
+            <p>
+                <strong>Selected Kernel:</strong>
+                <span id="kernel"></span>
+            </p>
+
+        </div>
+
+    </div>
+
+
+    <div class="card">
+
+        <h2>Model Performance Comparison</h2>
+
+        <p>
+            Comparison of Linear, Polynomial and RBF SVM kernels.
+        </p>
+
+        <div id="comparison">
+            Loading comparison...
+        </div>
+
+        <div id="bestKernel"></div>
+
+    </div>
+
+
+    <div class="card">
+
+        <h2>Confusion Matrix</h2>
+
+        <p>
+            Confusion matrix generated during model evaluation.
+        </p>
+
+        <img
+            src="{{ url_for('static', filename='confusion_matrix.png') }}"
+            alt="Confusion Matrix"
+            style="width:100%; max-width:650px; display:block; margin:auto;"
+            onerror="this.style.display='none';"
+        >
+
+    </div>
+
+
+    <p class="note">
+        Academic screening prototype only.
+        This prediction is not a medical diagnosis.
+    </p>
+
+</div>
+
+
+<script>
+
+const fieldsDiv = document.getElementById("fields");
+const statusDiv = document.getElementById("status");
+const resultDiv = document.getElementById("result");
+
+
+// Load patient features
+async function loadFields() {
+
+    try {
+
+        const response = await fetch("/metadata");
+        const fields = await response.json();
+
+        if (!response.ok) {
+            throw new Error(fields.error || "Unable to load features");
+        }
+
+        fieldsDiv.replaceChildren();
+
+        for (const [name, info] of Object.entries(fields)) {
+
+            const label = document.createElement("label");
+            label.textContent = name;
+
+            let input;
+
+            if (info.type === "category") {
+
+                input = document.createElement("select");
+
+                info.options.forEach(value => {
+
+                    const option = document.createElement("option");
+
+                    option.value = value;
+                    option.textContent = value;
+
+                    if (value === info.default) {
+                        option.selected = true;
+                    }
+
+                    input.appendChild(option);
+
+                });
+
+            } else {
+
+                input = document.createElement("input");
+
+                input.type = "number";
+                input.step = "any";
+                input.value = info.default;
+                input.required = true;
+
+            }
+
+            input.name = name;
+
+            label.appendChild(input);
+            fieldsDiv.appendChild(label);
+
+        }
+
+    } catch (error) {
+
+        fieldsDiv.textContent = "Unable to load patient features.";
+        statusDiv.textContent = error.message;
+
+    }
+
+}
+
+
+// Predict patient disorder
+document.getElementById("patientForm").addEventListener(
+    "submit",
+    async function(event) {
+
+        event.preventDefault();
+
+        statusDiv.textContent = "Predicting...";
+        resultDiv.classList.add("hidden");
+
+        const patient = {};
+
+        const formData = new FormData(this);
+
+        for (const [key, value] of formData.entries()) {
+            patient[key] = value;
+        }
+
+        try {
+
+            const response = await fetch("/predict", {
+
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify(patient)
+
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || "Prediction failed");
+            }
+
+            document.getElementById("prediction").textContent =
+                data.predicted_subclass;
+
+            document.getElementById("kernel").textContent =
+                data.kernel;
+
+            resultDiv.classList.remove("hidden");
+            statusDiv.textContent = "";
+
+        } catch (error) {
+
+            statusDiv.textContent = "Error: " + error.message;
+
+        }
+
+    }
+);
+
+
+// Load kernel comparison
+async function loadComparison() {
+
+    const comparisonDiv = document.getElementById("comparison");
+    const bestDiv = document.getElementById("bestKernel");
+
+    try {
+
+        const response = await fetch("/comparison");
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Comparison failed");
+        }
+
+        comparisonDiv.replaceChildren();
+
+        data.results.forEach(item => {
+
+            const row = document.createElement("div");
+            row.className = "bar-row";
+
+            const label = document.createElement("div");
+            label.className = "bar-label";
+
+            const name = document.createElement("span");
+            name.textContent = item.kernel;
+
+            const accuracy = document.createElement("span");
+            accuracy.textContent = item.accuracy.toFixed(2) + "%";
+
+            label.append(name, accuracy);
+
+            const background = document.createElement("div");
+            background.className = "bar-background";
+
+            const fill = document.createElement("div");
+            fill.className = "bar-fill";
+
+            fill.style.width =
+                Math.max(0, Math.min(100, item.accuracy)) + "%";
+
+            background.appendChild(fill);
+
+            row.append(label, background);
+            comparisonDiv.appendChild(row);
+
+        });
+
+        bestDiv.textContent =
+            "Highest Accuracy: " +
+            data.best_kernel +
+            " (" + data.best_accuracy.toFixed(2) + "%)";
+
+    } catch (error) {
+
+        comparisonDiv.textContent = error.message;
+
+    }
+
+}
+
+
+// Load everything
+loadFields();
+loadComparison();
+
+</script>
+
+</body>
+</html>
+
